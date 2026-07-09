@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AR Draw POC</title>
+    <link rel="manifest" href="./manifest.json">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        #camera-stream {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        #overlay-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        #trace-image {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+            max-width: 90%;
+            max-height: 90%;
+            opacity: 0.5;
+            display: none;
+            will-change: transform;
+        }
+
+        #controls-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(25, 25, 25, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 16px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .slider-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: #007aff;
+        }
+
+        .btn {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .btn:active {
+            background-color: #0056b3;
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-secondary:active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-danger {
+            background-color: #ff3b30;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .locked {
+            border: 1px solid #ff3b30 !important;
+        }
+    </style>
+</head>
+<body>
+
+    <video id="camera-stream" autoplay playsinline muted></video>
+
+    <div id="overlay-container">
+        <img id="trace-image" src="" alt="Tracing guide">
+    </div>
+
+    <div id="controls-panel">
+        <div class="control-row">
+            <label for="file-input" class="btn">Upload Image</label>
+            <input type="file" id="file-input" accept="image/*">
+            
+            <div class="slider-container">
+                <span>Opacity</span>
+                <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="0.5">
+            </div>
+        </div>
+
+        <div class="control-row" style="justify-content: flex-start; gap: 8px;">
+            <button id="btn-mirror" class="btn btn-secondary">Flip Horizontal</button>
+            <button id="btn-lock" class="btn btn-secondary">Lock Position</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('camera-stream');
+        const overlayContainer = document.getElementById('overlay-container');
+        const traceImage = document.getElementById('trace-image');
+        const fileInput = document.getElementById('file-input');
+        const opacitySlider = document.getElementById('opacity-slider');
+        const btnMirror = document.getElementById('btn-mirror');
+        const btnLock = document.getElementById('btn-lock');
+        const controlsPanel = document.getElementById('controls-panel');
+
+        let isLocked = false;
+        let isMirrored = false;
+        
+        let scale = 1;
+        let rotation = 0;
+        let translateX = 0;
+        let translateY = 0;
+
+        let startX = 0, startY = 0;
+        let startTranslateX = 0, startTranslateY = 0;
+        let initialDistance = 0;
+        let initialScale = 1;
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" } },
+                    audio: false
+                });
+                video.srcObject = stream;
+                requestWakeLock();
+            } catch (err) {
+                alert("Camera access denied or unavailable. Please use HTTPS and allow camera permissions.");
+                console.error(err);
+            }
+        }
+
+        let wakeLock = null;
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.warn(`Wake Lock request failed: ${err.message}`);
+                }
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    traceImage.src = event.target.result;
+                    traceImage.style.display = 'block';
+                    
+                    scale = 1; rotation = 0; translateX = 0; translateY = 0;
+                    updateImageTransform();
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        opacitySlider.addEventListener('input', (e) => {
+            traceImage.style.opacity = e.target.value;
+        });
+
+        btnMirror.addEventListener('click', () => {
+            isMirrored = !isMirrored;
+            updateImageTransform();
+        });
+
+        btnLock.addEventListener('click', () => {
+            isLocked = !isLocked;
+            if (isLocked) {
+                overlayContainer.style.pointerEvents = 'none';
+                btnLock.textContent = 'Unlock Position';
+                btnLock.classList.replace('btn-secondary', 'btn-danger');
+                controlsPanel.classList.add('locked');
+            } else {
+                overlayContainer.style.pointerEvents = 'auto';
+                btnLock.textContent = 'Lock Position';
+                btnLock.classList.replace('btn-danger', 'btn-secondary');
+                controlsPanel.classList.remove('locked');
+            }
+        });
+
+        function updateImageTransform() {
+            const mirrorX = isMirrored ? -1 : 1;
+            traceImage.style.transform = `translate(calc(-50% + ${translateX}px), calc(-50% + ${translateY}px)) scale(${scale * mirrorX}, ${scale}) rotate(${rotation}deg)`;
+        }
+
+        overlayContainer.addEventListener('touchstart', (e) => {
+            if (isLocked || !traceImage.src) return;
+
+            if (e.touches.length === 1) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                startTranslateX = translateX;
+                startTranslateY = translateY;
+            } else if (e.touches.length === 2) {
+                initialDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                initialScale = scale;
+            }
+        });
+
+        overlayContainer.addEventListener('touchmove', (e) => {
+            if (isLocked || !traceImage.src) return;
+            e.preventDefault();
+
+            if (e.touches.length === 1) {
+                const deltaX = e.touches[0].clientX - startX;
+                const deltaY = e.touches[0].clientY - startY;
+                translateX = startTranslateX + deltaX;
+                translateY = startTranslateY + deltaY;
+            } else if (e.touches.length === 2) {
+                const currentDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                if (initialDistance > 0) {
+                    scale = initialScale * (currentDistance / initialDistance);
+                }
+            }
+            updateImageTransform();
+        });
+
+        initCamera();
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch(() => {
+                console.log("Service Worker registration skipped or failed.");
+            });
+        }
+    </script>
+</body>
+</html>
