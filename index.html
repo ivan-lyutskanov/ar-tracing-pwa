@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR Draw POC</title>
+    <title>Trace with Lea</title>
+    <meta property="og:title" content="Trace with Lea">
+    <meta property="og:description" content="Trace images onto paper using your phone's camera — made for Lea ❤️">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ivan-lyutskanov.github.io/ar-tracing-pwa/">
     <link rel="manifest" href="./manifest.json">
     <style>
         * {
@@ -133,6 +137,19 @@
 
         .locked {
             border: 1px solid #ff3b30 !important;
+        }
+
+        #footer {
+            position: absolute;
+            bottom: 8px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 10;
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -317,5 +334,7 @@
             });
         }
     </script>
+
+    <div id="footer">Made for Lea ❤️</div>
 </body>
 </html>

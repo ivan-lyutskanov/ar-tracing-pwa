@@ -1,6 +1,6 @@
 {
-  "name": "AR Tracing PWA",
-  "short_name": "ARTrace",
+  "name": "Trace with Lea",
+  "short_name": "LeaTrace",
   "description": "Trace images onto paper using your phone's camera",
   "start_url": "./index.html",
   "scope": "./",

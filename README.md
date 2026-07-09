@@ -1,4 +1,4 @@
-# AR Tracing PWA
+# Trace with Lea
 
 Upload any image and overlay it with adjustable opacity onto your phone's rear camera feed. Position your phone over a blank sheet of paper and trace the image directly.
 

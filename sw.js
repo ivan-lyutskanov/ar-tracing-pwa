@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ar-trace-v1';
+const CACHE_NAME = 'trace-with-lea-v1';
 const CACHE_URLS = [
   './index.html',
   './manifest.json'
