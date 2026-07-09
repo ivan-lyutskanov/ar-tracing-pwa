@@ -151,7 +151,7 @@
             
             <div class="slider-container">
                 <span>Opacity</span>
-                <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="0.5">
+                <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.5">
             </div>
         </div>
 
@@ -183,6 +183,8 @@
         let startTranslateX = 0, startTranslateY = 0;
         let initialDistance = 0;
         let initialScale = 1;
+        let initialAngle = 0;
+        let initialRotation = 0;
 
         async function initCamera() {
             try {
@@ -273,6 +275,11 @@
                     e.touches[0].clientY - e.touches[1].clientY
                 );
                 initialScale = scale;
+                initialAngle = Math.atan2(
+                    e.touches[0].clientY - e.touches[1].clientY,
+                    e.touches[0].clientX - e.touches[1].clientX
+                );
+                initialRotation = rotation;
             }
         });
 
@@ -293,6 +300,11 @@
                 if (initialDistance > 0) {
                     scale = initialScale * (currentDistance / initialDistance);
                 }
+                const currentAngle = Math.atan2(
+                    e.touches[0].clientY - e.touches[1].clientY,
+                    e.touches[0].clientX - e.touches[1].clientX
+                );
+                rotation = initialRotation + (currentAngle - initialAngle) * (180 / Math.PI);
             }
             updateImageTransform();
         });
